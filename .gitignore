@@ -1,0 +1,6 @@
+# Mac files
+.DS_Store
+.com.apple.timemachine.supported
+
+# Git
+*.orig
