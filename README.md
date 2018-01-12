@@ -3,6 +3,8 @@
 [![License][license-image]][license-url]
 [![Contributor Code of Conduct][contributing-image]][contributing-url]
 
+## [Work-in-progress -- no releases]
+
 A simple cooperative multitasking library for Arduino IDE 1.5+.
 
 This library currently supports ARM® Cortex®-M0+ processors (e.g. development boards based on Atmel/Microchip SAM C, D, and L MCUs).
