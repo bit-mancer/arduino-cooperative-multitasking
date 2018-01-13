@@ -25,16 +25,15 @@ namespace CoopMultitasking {
 
 
     static GreenThread* g_currentThread = nullptr;
+    static uint32_t g_threadID = 0;
 
     class Init final {
     public:
         Init() {
             g_currentThread = new GreenThread;
-
-            static uint32_t id = 0;
-            g_currentThread->id = id++;
-
+            g_currentThread->id = g_threadID++;
             g_currentThread->next = g_currentThread;
+            // The remaining members are set during the first context switch
         }
     };
 
@@ -45,19 +44,36 @@ namespace CoopMultitasking {
 
     extern "C" {
 
-        /**
-         * Switch the thread context from the provided current thread, to the next thread in the thread list.
-         *
-         * @param current A reference to the currently-executing thread. The reference will be updated to point to the
-         *                next thread. Typically you would pass a reference to the global current thread instance.
-         */
-        static void __attribute__((naked)) __attribute__((noinline)) switchContext( GreenThread*& current ) {
+        static void __attribute__((noinline)) __attribute__((used)) runLoop( LoopFunc func ) {
+            while ( true ) {
+                func();
+            }
+        }
 
-            (void)current; // compiler hint for unused parameter warning
+
+        /**
+         * Bootstraps a new thread for execution, and then performs a context switch from the current thread to the new
+         * thread.
+         *
+         * @param currentThread A reference to the currently-executing thread. The reference will be updated to point
+         *                      to the new thread. Typically you would pass a reference to the global current thread
+         *                      instance.
+         * @param newThread The new thread to bootstrap; the new thread should already have a stack allocated.
+         */
+        static void __attribute__((naked)) __attribute__((noinline)) bootstrapAndSwitchToNewThread(
+                    GreenThread* currentThread,
+                    GreenThread* newThread,
+                    LoopFunc func ) {
+
+            // compiler hints for unused parameter warnings
+            (void)currentThread;
+            (void)newThread;
+            (void)func;
 
             asm (
+
                 // AAPCS states that a subroutine must preserve the contents of the registers r4-r8, r10, r11 and sp
-                // (and r9 in PCS variants that designate r9 as v6). Register 9 is the platform register: it's meaning
+                // (and r9 in PCS variants that designate r9 as v6). Register 9 is the platform register: its meaning
                 // is defined by the virtual platform. I haven't found documentation of r9 in Arduino (assuming Arduino
                 // positions the Arduino libraries as a virtual platform), so we'll assume that r9 is designated as v6.
                 // Therefore the calling convention requires us to preserve r4-r11 (v1-v8) and sp.
@@ -67,7 +83,62 @@ namespace CoopMultitasking {
                 // nominally mean that we wouldn't be required to maintain double-word alignment, re-entrancy to the
                 // thread can be triggered at other points in the code (e.g. when we need to bootstrap a new thread).
 
-                "ldr r1, [r0, #0];" // * (GreenThread**)  [T* and T& both map to the data pointer machine type in AAPCS]
+                // The push instruction encodes register_list as 8 1-bit flags, and so can only access the low
+                // registers (and optionally LR); mov encodes Rm using 4 bits and can thus access the high registers;
+                // therefore, we need to batch our store-multiples in order to push the high registers.
+                "push {r4-r7, lr};"
+                "mov r4, r8;"
+                "mov r5, r9;"
+                "mov r6, r10;"
+                "mov r7, r11;"
+                "push {r4-r7};"
+
+                // align the stack; AAPCS and ARM Thumb C and C++ compilers always use a full descending stack
+                "sub sp, #4;"
+
+                // Store the stack pointer into the current GreenThread's 'sp' member
+                "mov r7, sp;"
+                "str r7, [r0, #0];"
+
+
+                // bootstrap the new thread
+
+                // Load the stack pointer from the next GreenThread's 'sp' member
+                "ldr r4, [r1, #0];"
+                "mov sp, r4;"
+
+                // Start the run loop
+                "mov r0, r2;"
+                "bl runLoop;"
+            );
+        }
+
+
+        /**
+         * Switch the thread context from the provided current thread, to the provided next thread.
+         *
+         * @param current The currently-executing thread. The reference will be updated to point to the
+         *                next thread. Typically you would pass a reference to the global current thread instance.
+         */
+        static void __attribute__((naked)) __attribute__((noinline)) switchContext(
+                GreenThread* current,
+                GreenThread* next ) {
+
+            // compiler hints for unused parameter warnings
+            (void)current;
+            (void)next;
+
+            asm (
+                // AAPCS states that a subroutine must preserve the contents of the registers r4-r8, r10, r11 and sp
+                // (and r9 in PCS variants that designate r9 as v6). Register 9 is the platform register: its meaning
+                // is defined by the virtual platform. I haven't found documentation of r9 in Arduino (assuming Arduino
+                // positions the Arduino libraries as a virtual platform), so we'll assume that r9 is designated as v6.
+                // Therefore the calling convention requires us to preserve r4-r11 (v1-v8) and sp.
+
+                // AAPCS requires the stack to be word-aligned at all times; furthermore, at public interfaces, the
+                // stack must be double-word aligned. While this function appears to be a leaf function, which would
+                // nominally mean that we wouldn't be required to maintain double-word alignment, re-entrancy to the
+                // thread can be triggered at other points in the code (e.g. when we need to bootstrap a new thread).
 
                 // The push instruction encodes register_list as 8 1-bit flags, and so can only access the low
                 // registers (and optionally LR); mov encodes Rm using 4 bits and can thus access the high registers;
@@ -82,20 +153,14 @@ namespace CoopMultitasking {
                 // align the stack; AAPCS and ARM Thumb C and C++ compilers always use a full descending stack
                 "sub sp, #4;"
 
-                // Store the stack pointer into the GreenThread structure's 'sp' member
+                // Store the stack pointer into the current GreenThread's 'sp' member
                 "mov r6, sp;"
-                "str r6, [r1, #0];"
+                "str r6, [r0, #0];"
 
 
-                // dereference the 'next' pointer in the GreenThread structure
-                "ldr r1, [r1, #4];"
-                // update the memory that 'current' is aliasing (i.e. g_currentThread) to point to 'next'
-                "str r1, [r0, #0];"
-
-
-                // Load the stack pointer from the GreenThread structure's 'sp' member
+                // Load the stack pointer from the next GreenThread's 'sp' member
                 "ldr r6, [r1, #0];"
-                "mov r6, sp;"
+                "mov sp, r6;"
 
                 // Account for the stack alignment above
                 "add sp, #4;"
@@ -115,7 +180,38 @@ namespace CoopMultitasking {
 
 
     void yield() {
-        switchContext( g_currentThread );
+        auto current = g_currentThread;
+        g_currentThread = current->next;
+        switchContext( current, g_currentThread );
+    }
+
+
+    void startLoop( LoopFunc func, uint32_t stackSize ) {
+
+        auto newThread = new GreenThread;
+
+        newThread->id = g_threadID++;
+
+        // AAPCS requires that the stack be word-aligned at all times; furthermore, at public interfaces, the stack
+        // must be double-word aligned.
+        auto stackExtent = stackSize + (stackSize % 8);
+        auto stack = (uint32_t) ::memalign( 8, stackExtent );
+
+        // AAPCS and ARM Thumb C and C++ compilers always use a full descending stack
+        newThread->sp = stack + stackExtent;
+
+        // NOTE: at this time, this library is loop-only and therefore doesn't allow threads to be stopped, so we'll
+        // skip storing the allocated pointer since we never need to free it
+
+        newThread->next = g_currentThread->next;
+        g_currentThread->next = newThread;
+
+        auto current = g_currentThread;
+        g_currentThread = newThread;
+
+        bootstrapAndSwitchToNewThread( current, newThread, func );
+
+        // The current thread will resume execution here after the new thread performs its first context switch
     }
 
 } // namespace
