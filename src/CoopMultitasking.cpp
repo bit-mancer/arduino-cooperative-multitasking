@@ -52,11 +52,13 @@ namespace CoopMultitasking {
          * Bootstraps a new thread for execution, and then performs a context switch from the current thread to the new
          * thread.
          *
-         * @param currentThread A reference to the currently-executing thread. The reference will be updated to point
-         *                      to the new thread. Typically you would pass a reference to the global current thread
+         * This function operates only on the provided parameters and doesn't update any globals.
+         *
+         * @param currentThread The currently-executing thread. Typically you would pass the global current thread
          *                      instance.
          * @param newThread The new thread to bootstrap; the new thread should already have a stack allocated that is
          *                  double-word aligned.
+         * @param func The function that will be called repeatedly via runLoop().
          */
         static void __attribute__((naked)) __attribute__((noinline)) bootstrapAndSwitchToNewThread(
                     GreenThread* currentThread,
@@ -114,8 +116,11 @@ namespace CoopMultitasking {
         /**
          * Switch the thread context from the provided current thread, to the provided next thread.
          *
-         * @param current The currently-executing thread. The reference will be updated to point to the
-         *                next thread. Typically you would pass a reference to the global current thread instance.
+         * This function operates only on the provided parameters and doesn't update any globals.
+         *
+         * @param currentThread The currently-executing thread. Typically you would pass the global current thread
+         *                      instance.
+         * @param next The thread to switch to.
          */
         static void __attribute__((naked)) __attribute__((noinline)) switchContext(
                 GreenThread* current,

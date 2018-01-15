@@ -1,0 +1,24 @@
+#######################################
+# Syntax Coloring Map For CoopMultitasking
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+CoopMultitasking::LoopFunc  KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+CoopMultitasking::yield   KEYWORD2
+CoopMultitasking::startLoop   KEYWORD2
+
+#######################################
+# Instances (KEYWORD2)
+#######################################
+
+#######################################
+# Constants (LITERAL1)
+#######################################
