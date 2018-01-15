@@ -7,13 +7,13 @@ CoopMultitasking is a simple cooperative multitasking library for Arduino and Ar
 
 
 __Table of Contents__
-0. [Getting Started](#getting-started)
-0. [Examples](#examples)
-0. [Compatibility](#compatibility)
-0. [Installation](#installation)
-0. [Further Information](#further-information)
-0. [Troubleshooting](#troubleshooting)
-0. [Implementation Details](#implementation-details)
+* [Getting Started](#getting-started)
+* [Examples](#examples)
+* [Compatibility](#compatibility)
+* [Installation](#installation)
+* [Further Information](#further-information)
+* [Troubleshooting](#troubleshooting)
+* [Implementation Details](#implementation-details)
 
 
 
