@@ -1,6 +1,4 @@
-#include <cstdint>
 #include <malloc.h>
-
 
 #include "CoopMultitasking.h"
 
@@ -10,29 +8,27 @@
 namespace CoopMultitasking {
 
     /**
+     * Holds partial context information for a thread; the remainder of the thread context is stored on the thread's
+     * stack.
      *
      * NOTE: assembly code expects the initial part of this structure to be well-defined.
      */
-    struct GreenThread {
+    struct GreenThread final {
 
         // BEGIN assembly code expects this ordering
         uint32_t sp;
         GreenThread* next;
         // END assembly code expects this ordering
-
-        uint32_t id;
     };
 
 
 
     static GreenThread* g_currentThread = nullptr;
-    static uint32_t g_threadID = 0;
 
     class Init final {
     public:
         Init() {
             g_currentThread = new GreenThread;
-            g_currentThread->id = g_threadID++;
             g_currentThread->next = g_currentThread;
             // The remaining members are set during the first context switch
         }
@@ -185,8 +181,6 @@ namespace CoopMultitasking {
     void startLoop( LoopFunc func, uint32_t stackSize ) {
 
         auto newThread = new GreenThread;
-
-        newThread->id = g_threadID++;
 
         // Account for the thread context information that will be pushed onto the stack during a context switch, so
         // that the requested stack size is fully-available

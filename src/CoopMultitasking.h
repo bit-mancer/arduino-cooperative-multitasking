@@ -5,6 +5,8 @@
 #error The CoopMultitasking library currently only supports ARM Cortex-M0/M0+ processors (e.g. development boards based on Atmel/Microchip SAM C, D, and L MCUs).
 #endif
 
+#include <cstdint>
+
 namespace CoopMultitasking {
 
     using LoopFunc = void (*)();
