@@ -1,10 +1,11 @@
 #include <cstdint>
 #include <malloc.h>
 
-#include <Arduino.h>
 
 #include "CoopMultitasking.h"
 
+#define _COOPMULTITASKING_CORTEXM_WORD_SIZE 4
+#define _COOPMULTITASKING_CORTEXM_THREAD_CONTEXT_WORDS 9
 
 namespace CoopMultitasking {
 
@@ -58,7 +59,8 @@ namespace CoopMultitasking {
          * @param currentThread A reference to the currently-executing thread. The reference will be updated to point
          *                      to the new thread. Typically you would pass a reference to the global current thread
          *                      instance.
-         * @param newThread The new thread to bootstrap; the new thread should already have a stack allocated.
+         * @param newThread The new thread to bootstrap; the new thread should already have a stack allocated that is
+         *                  double-word aligned.
          */
         static void __attribute__((naked)) __attribute__((noinline)) bootstrapAndSwitchToNewThread(
                     GreenThread* currentThread,
@@ -78,10 +80,11 @@ namespace CoopMultitasking {
                 // positions the Arduino libraries as a virtual platform), so we'll assume that r9 is designated as v6.
                 // Therefore the calling convention requires us to preserve r4-r11 (v1-v8) and sp.
 
-                // AAPCS requires the stack to be word-aligned at all times; furthermore, at public interfaces, the
-                // stack must be double-word aligned. While this function appears to be a leaf function, which would
-                // nominally mean that we wouldn't be required to maintain double-word alignment, re-entrancy to the
-                // thread can be triggered at other points in the code (e.g. when we need to bootstrap a new thread).
+                // We store 9 words of context information on the stack while suspending a thread. AAPCS requires the
+                // stack to be word-aligned at all times; furthermore, at public interfaces, the stack must be
+                // double-word aligned. While re-entrancy to the thread can occur at other points in the code (e.g.
+                // when we need to perform a context switch), these are all internal functions and the act of restoring
+                // the thread context will re-align the stack to a double-word.
 
                 // The push instruction encodes register_list as 8 1-bit flags, and so can only access the low
                 // registers (and optionally LR); mov encodes Rm using 4 bits and can thus access the high registers;
@@ -93,9 +96,6 @@ namespace CoopMultitasking {
                 "mov r7, r11;"
                 "push {r4-r7};"
 
-                // align the stack; AAPCS and ARM Thumb C and C++ compilers always use a full descending stack
-                "sub sp, #4;"
-
                 // Store the stack pointer into the current GreenThread's 'sp' member
                 "mov r7, sp;"
                 "str r7, [r0, #0];"
@@ -103,7 +103,8 @@ namespace CoopMultitasking {
 
                 // bootstrap the new thread
 
-                // Load the stack pointer from the next GreenThread's 'sp' member
+                // Load the stack pointer from the next GreenThread's 'sp' member; the stack is already
+                // double-word-aligned (see startLoop())
                 "ldr r4, [r1, #0];"
                 "mov sp, r4;"
 
@@ -135,10 +136,11 @@ namespace CoopMultitasking {
                 // positions the Arduino libraries as a virtual platform), so we'll assume that r9 is designated as v6.
                 // Therefore the calling convention requires us to preserve r4-r11 (v1-v8) and sp.
 
-                // AAPCS requires the stack to be word-aligned at all times; furthermore, at public interfaces, the
-                // stack must be double-word aligned. While this function appears to be a leaf function, which would
-                // nominally mean that we wouldn't be required to maintain double-word alignment, re-entrancy to the
-                // thread can be triggered at other points in the code (e.g. when we need to bootstrap a new thread).
+                // We store 9 words of context information on the stack while suspending a thread. AAPCS requires the
+                // stack to be word-aligned at all times; furthermore, at public interfaces, the stack must be
+                // double-word aligned. While re-entrancy to the thread can occur at other points in the code (e.g.
+                // when we need to bootstrap a new thread), these are all internal functions and the act of restoring
+                // the thread context will re-align the stack to a double-word.
 
                 // The push instruction encodes register_list as 8 1-bit flags, and so can only access the low
                 // registers (and optionally LR); mov encodes Rm using 4 bits and can thus access the high registers;
@@ -150,9 +152,6 @@ namespace CoopMultitasking {
                 "mov r5, r11;"
                 "push {r2-r5};"
 
-                // align the stack; AAPCS and ARM Thumb C and C++ compilers always use a full descending stack
-                "sub sp, #4;"
-
                 // Store the stack pointer into the current GreenThread's 'sp' member
                 "mov r6, sp;"
                 "str r6, [r0, #0];"
@@ -161,9 +160,6 @@ namespace CoopMultitasking {
                 // Load the stack pointer from the next GreenThread's 'sp' member
                 "ldr r6, [r1, #0];"
                 "mov sp, r6;"
-
-                // Account for the stack alignment above
-                "add sp, #4;"
 
                 // Batch load the registers (see above)
                 "pop {r2-r5};"
@@ -191,6 +187,10 @@ namespace CoopMultitasking {
         auto newThread = new GreenThread;
 
         newThread->id = g_threadID++;
+
+        // Account for the thread context information that will be pushed onto the stack during a context switch, so
+        // that the requested stack size is fully-available
+        stackSize += (_COOPMULTITASKING_CORTEXM_THREAD_CONTEXT_WORDS * _COOPMULTITASKING_CORTEXM_WORD_SIZE);
 
         // AAPCS requires that the stack be word-aligned at all times; furthermore, at public interfaces, the stack
         // must be double-word aligned.

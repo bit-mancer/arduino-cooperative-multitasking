@@ -2,7 +2,7 @@
 #define _COOPMULTITASKING_COOPMULTITASKING_H_
 
 #if ! defined(ARDUINO_ARCH_SAMC) && ! defined(ARDUINO_ARCH_SAMD) && ! defined(ARDUINO_ARCH_SAML)
-#error The CoopMultitasking library currently only supports ARM® Cortex®-M0+ processors (e.g. development boards based on Atmel/Microchip SAM C, D, and L MCUs).
+#error The CoopMultitasking library currently only supports ARM Cortex-M0/M0+ processors (e.g. development boards based on Atmel/Microchip SAM C, D, and L MCUs).
 #endif
 
 namespace CoopMultitasking {
@@ -14,7 +14,7 @@ namespace CoopMultitasking {
      *
      * Yield is called automatically whenever you call the Arduino functions delay() and yield().
      *
-     * Yield MUST be periodically called, typically via the Arduino fucntions delay() or yield(); if it isn't, the
+     * Yield MUST be periodically called, typically via the Arduino functions delay() or yield(); if it isn't, the
      * other threads will never have a chance to run.
      */
     extern void yield();
@@ -28,8 +28,10 @@ namespace CoopMultitasking {
      * chance to run.
      *
      * @param func The function to call repeatedly in a loop; it is akin to the loop() function you write in your
-     *             Arduino sketch; e.g. your new loop could be void loop2() { ... }
-     * @param stackSize The stack size for the new thread.
+     *             Arduino sketch; e.g. void loop2() { ... }
+     * @param stackSize The stack size for the new thread. The actual allocated size will be slightly larger than the
+     *                  requested size by about 40 bytes; however, your code should never expect to use more than the
+     *                  requested size.
      * [TODO notes on stack size, and possibly provide a default]
      */
     extern void startLoop( LoopFunc func, uint32_t stackSize );
