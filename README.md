@@ -40,16 +40,18 @@ void setup() {
 }
 
 void loop() {
-    Serial.println( "loop" );
+    Serial.println( "This is the normal Arduino loop." );
     delay( 500 );
 }
 
 void loop2() {
-    Serial.println( "loop2" );
+    Serial.println( "This is our new loop!" );
     delay( 2000 );
 }
 ```
 
+
+<br>
 You can start as many loops as you want, constrained only by the memory available on your device:
 
 ```cpp
@@ -61,21 +63,24 @@ void setup() {
 }
 
 void loop() {
-    Serial.println( "loop" );
+    Serial.println( "This is the normal Arduino loop." );
     delay( 500 );
 }
 
 void loop2() {
-    Serial.println( "loop2" );
+    Serial.println( "This is our new loop!" );
     delay( 2000 );
 }
 
 void loop3() {
-    Serial.println( "loop3" );
+    Serial.println( "This is our third loop!" );
     delay( 1000 );
 }
 ```
+> TODO link to stack size notes
 
+
+<br>
 If your existing code is using `millis()` in a tight loop, you'll want to modify the code to also call `yield()` &mdash; this will allow your other loops to run:
 
 ```cpp
@@ -94,20 +99,24 @@ void loop() {
 
     if ( currentMS - previousMS > intervalMS ) {
         previousMS = currentMS;
-        Serial.println( "loop" );
+        Serial.println( "This is the normal Arduino loop." );
     }
 
     yield(); // <-- we need to add this to allow loop2 to run!
 }
 
 void loop2() {
-    Serial.println( "loop2" );
+    Serial.println( "This is our new loop!" );
     delay( 2000 ); // it's important to use delay() or yield() in *each* loop!
 }
 ```
 
 __It's important that every loop ultimately calls either `delay()` or `yield()`.__
 
+_If you're unfamiliar with `yield()`, see the [Timing](#timing) section._
+
+
+<br>
 If you have existing code in a tight loop for a long-running task, you can add `yield()` to allow other loops to run periodically during the task.
 
 ```cpp
@@ -116,7 +125,7 @@ If you have existing code in a tight loop for a long-running task, you can add `
 const int BUTTON_PIN = 2;
 
 void setup() {
-    pinMode( BUTTON_PIN, INPUT );
+    pinMode( BUTTON_PIN, INPUT_PULLUP );
 
     CoopMultitasking::startLoop( loop2, 1024 );
 }
@@ -131,33 +140,25 @@ void loop() {
 
 void doLongRunningTask() {
     for ( int i = 0; i < 10000; i++ ) {
-        // Yield to other loops every 100 iterations
-        if ( i % 100 == 0 ) {
-            yield(); // <-- allow loop2 to run during the long-running task!
-        }
-
         // do some work on the long-running task
         // ...
+        yield(); // <-- allow loop2 to run during the long-running task!
     }
 }
 
 void loop2() {
-    Serial.println( "loop2" );
+    Serial.println( "This is our new loop!" );
     delay( 2000 ); // it's important to use delay() or yield() in *each* loop!
 }
 ```
 
-You don't necessarily need to call `yield()` in a loop-within-a-loop when `yield()` is already being called by the outer loop. In the above example, we have two yields because `loop()` is repeatedly checking for a button press; once it detects the press, it starts a task that takes a long time to complete, so that inner loop also calls `yield()` (because the outer `yield()` won't be called for a long time). If we had a quick task that had a loop instead of a long-running task then we wouldn't need the second `yield().`
-
-In the above example, `yield()` is called every 100 iterations. It's up to you to determine whether yield should be called every iteration or less frequently. Factors influencing the decision would include the amount of time each iteration takes and how often you'd like your other loops to run. If in doubt, call `yield()` on every iteration.
+You don't necessarily need to call `yield()` in a loop-within-a-loop when `yield()` is already being called by the outer loop. In the above example we have two yields because the inner loop takes a long time to complete; if it was a quick task or fast loop then it would be fine to only have a yield on the outer loop.
 
 
 
 ## Compatibility
 
 This library requires a relatively recent version of Arduino IDE (e.g. 1.6+).
-
-This library currently supports ARM Cortex-M0/M0+ processors (e.g. development boards based on Atmel/Microchip SAM C, D, and L MCUs).
 
 __The following products should be compatible:__
 * Adafruit Feather M0
@@ -174,7 +175,7 @@ __The following products should be compatible:__
 * Arduino Zero
 * _similar Arduino and Arduino-compatible development boards_
 
-Arduino and Arduino-compatible development boards that use the AVR, ESP32, or ESP8266 MCUs are not currently supported.
+This library currently supports ARM Cortex-M0/M0+ processors (e.g. development boards based on Atmel/Microchip SAM C, D, and L MCUs). Arduino and Arduino-compatible development boards that use the AVR, ESP32, or ESP8266 MCUs are not currently supported.
 
 _CoopMultitasking is a third-party library for Arduino and Arduino-compatible development boards and is not affiliated with Arduino Holding._
 
@@ -191,14 +192,111 @@ Download this repository as a zip file and then use the `Sketch->Include Library
 
 "Cooperative multitasking" means that there is no scheduler that will suddenly preempt the execution of a thread in order to run another thread; there are no "time slices." Instead, each thread (loop in our case) must periodically and explicitly yield in order to allow other threads to run. All threads must ultimately yield to allow the forward progression of your application across all threads.
 
-This library is currently targeting single-core processors, which means that only one thread (and thus, loop) will execute at any given time.
+This library is targeting single-core processors, which means that only one thread (and thus, loop) will execute at any given time.
+
+
+#### Timing
+
+Once you call `delay()` or `yield()`, other threads are allowed to run; once they have also called `delay()` or `yield()`, the first thread is allowed to run again (the threads run in a round-robin fashion). The amount of time the first thread has to wait before it gets another chance to run depends on how many threads (loops) you have and how long they run before they call `delay()` or `yield()`.
+
+You're probably familiar with `delay()`, but `yield()` might be something you haven't used before. Arduino's `delay()` function actually calls `yield()` periodically (about once a millisecond), and it is `yield()` itself that allows other threads to run. To allow all threads to run as often as possible you will want to make sure that nothing ties up the processor without calling `yield()`. For example, you'll generally want to avoid any long-running `for` or `while` loops such as this:
+
+```cpp
+void loop2() {
+    for ( int i = 0; i < 1000000; i++ ) {
+        // do some work that takes a while
+    }
+
+    delay( 1000 );
+}
+```
+
+In most circumstances you'll want to modify code like that shown above to add a `yield()` in the middle of your long-running tasks:
+
+```cpp
+void loop2() {
+    for ( int i = 0; i < 1000000; i++ ) {
+        // do some work that takes a while
+        yield(); // <-- give other threads a chance to run
+    }
+
+    delay( 1000 );
+}
+```
+
+<br>
+There is a time-cost to switching between threads. Most projects won't need to worry about this, but if you have a lot of loops then you may not want to call `yield()` on every iteration. For example if you have a for-loop with a high iteration count but each iteration takes very little time to run, then it might be better to call `yield()` every few iterations:
+
+```cpp
+void doLongRunningTask() {
+    for ( int i = 0; i < 10000; i++ ) {
+        // do some quick work on the long-running task
+        // ...
+
+        // Yield to other loops every 100 iterations
+        if ( i % 100 == 0 ) {
+            yield();
+        }
+    }
+}
+```
 
 
 #### Interrupt handlers
 
-Interrupt handlers will still preempt your code as usual.
+_You can safely skip this section if you don't use interrupts._
 
-__Never__ call `delay()`, `yield()`, or `CoopMultitasking::yield()` from an interrupt handler (which is a good practice anyway: interrupt handlers should be written to take no more time than absolutely necessary).
+Interrupt handlers &mdash; the functions you pass to `attachInterrupt()` &mdash; will still preempt your code as usual.
+
+If you have written interrupt handlers that use shared global variables then you have experience in marking those variables as `volatile`, which makes it safe to use those variables both from interrupt handlers and normal code. You __don't__ need to mark variables shared by CoopMultitasking threads (loops) as `volatile` __unless__ those variables are also used by interrupt handlers.
+
+Calls to `yield()` (and thus `CoopMultitasking::yield()`) and `CoopMultitasking::startLoop()` from an interrupt handler are __ignored__; calls to `delay()` from an interrupt handler will block, but not switch threads. As a general practice, whether you use CoopMultitasking or not, you shouldn't call `delay()` or `yield()` in an interrupt handler &mdash; handlers should be as small and fast as possible.
+
+If you'd like to start a loop from an interrupt handler, you should instead start the loop in `setup()` and then notify the loop that the interrupt has occurred:
+
+```cpp
+#define BUTTON_A 9
+
+volatile bool buttonTriggered = false;
+
+void setup() {
+    pinMode( BUTTON_A, INPUT_PULLUP );
+    attachInterrupt( digitalPinToInterrupt( BUTTON_A ), isrButton, FALLING );
+
+    CoopMultitasking::startLoop( triggeredLoop, 1024 );
+}
+
+void loop() {
+    // do whatever else your project needs to do...
+    yield();
+}
+
+void triggeredLoop() {
+    if ( buttonTriggered ) {
+        buttonTriggered = false;
+
+        // handle the button event
+    }
+
+    yield();
+}
+
+void isrButton() {
+    buttonTriggered = true;
+}
+```
+
+
+#### Handling error conditions
+
+`CoopMultitasking::startLoop()` returns a value indicating whether the loop was started. You can take a look at [CoopMultitasking.h](#src/CoopMultitasking.h) to see all of the possible values, but the out-of-memory condition is the one you likely want to check for:
+
+```cpp
+if ( CoopMultitasking::startLoop( loop2, 1024 )) == CoopMultitasking::Result::OutOfMemory ) {
+    // (do whatever is appropriate for your project)
+    Serial.println( "Failed to start loop: OUT OF MEMORY!" );
+}
+```
 
 
 #### Call order
@@ -287,17 +385,23 @@ void loop2() {
 ```
 
 
-
 ## Troubleshooting
+
+If you aren't familiar with Arduino libraries, check out the tutorials that Arduino and Adafruit have put together:
+
+<https://www.arduino.cc/en/Guide/Libraries>
+
+<https://learn.adafruit.com/adafruit-all-about-arduino-libraries-install-use/>
+
 
 #### Only one loop is running
 
-Make sure _every_ loop eventually calls either `delay()` or `yield()` &mdash; if one of your loops doesn't, then only that loop will get to run and the others will remain paused. It's okay to let your loop run a few times without calling either function, but if these functions are _never_ eventually called, then only that one loop will be able to run. If it looks like you have `delay()` or `yield()` in every loop and you're still getting this problem, then make sure they aren't being skipped by something like an `if` conditional.
+Make sure _every_ loop eventually calls either `delay()` or `yield()` &mdash; if one of your loops doesn't, then only that loop will get to run and the others will remain paused. It's okay to let your loop run a few times without calling either function, but if these functions are _never_ eventually called, then only that one loop will be able to run. If it looks like you have `delay()` or `yield()` in every loop and you're still getting this problem, then make sure they aren't being skipped by something like an `if` statement.
 
 
 #### Example code
 
-If you run the example code exactly as written, you may notice that "loop" is printed _before_ "loop2" in your serial monitor, even though `loop2()` runs before `loop()` &mdash; if you see this, it's because your serial connection has yet to be established the first time `loop2()` runs and prints "loop2". You can add the following code to your setup function to wait for the serial connection before starting your loops:
+If you run the example code exactly as written, you may notice that `This is the normal Arduino loop.` is printed _before_ `This is our new loop!` in your serial monitor, even though `loop2()` runs before `loop()` &mdash; if you see this, it's because your serial connection has yet to be established the first time `loop2()` runs and calls `Serial.println()`. You can add the following code to your setup function to wait for the serial connection before starting your loops:
 
 ```cpp
 void setup() {
@@ -312,10 +416,10 @@ void setup() {
 
 #### `yield()` is already defined
 
-If you're using another library that also implements Arduino's `::yield()` function, then you can define `COOPMULTITASKING_NO_YIELD_DEF` _before_ including the CoopMultitasking header:
+If you're using another library that also implements Arduino's `::yield()` function, then you can define `COOPMULTITASKING_NO_YIELD_DEFINE` _before_ including the CoopMultitasking header:
 
 ```cpp
-#define COOPMULTITASKING_NO_YIELD_DEF
+#define COOPMULTITASKING_NO_YIELD_DEFINE
 #include <CoopMultitasking.h>
 ```
 
@@ -339,11 +443,11 @@ Make sure the library supports your development board &mdash; it has to be a boa
 
 #### Thread stack
 
-The stack size you request when calling `CoopMultitasking::startLoop()` will be increased by 36 bytes (to account for thread context information) and will be 8-byte-aligned (which is a processor/call procedure requirement); therefore, your stack may consume 36-43 bytes more than you request. Protected memory, canaries, etc., are not used, and stack overflows will lead to undefined behavior; that is, corruption of adjacent memory directly _below_ the stack (ARM uses a full descending stack).
+The stack size you request when calling `CoopMultitasking::startLoop()` will be increased by 36 bytes (to account for thread context information) and will be 8-byte-aligned (which is a processor/call procedure requirement); therefore, your stack may consume 36-43 more bytes than you request. Protected memory, canaries, etc., are not used, and stack overflows will lead to undefined behavior; that is, corruption of adjacent memory directly _below_ the stack (ARM uses a full descending stack).
 
 #### Requirement of each loop to explicitly call `delay()`/`yield()`
 
-The requirement (if you want forward progression across all threads) of calling `delay()` or `yield()` in your loops is for consistency with Arduino's runloop, which doesn't call `yield()` for you in-between iterations:
+The requirement (if you want forward progression across all threads) of calling `delay()` or `yield()` in your loops is for consistency with Arduino's runloop, which doesn't call `yield()` in-between iterations:
 
 ```cpp
 setup();
@@ -353,6 +457,7 @@ for (;;) {
     if (serialEventRun) serialEventRun();
 }
 ```
+
 
 
 [license-image]: https://img.shields.io/badge/license-MIT-blue.svg
