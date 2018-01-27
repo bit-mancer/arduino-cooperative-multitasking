@@ -6,35 +6,34 @@
 // between the implementation and the API header are used (such as Types.h).
 #include "CoopMultitasking/Types.h"
 
-#define _COOPMULTITASKING_CORTEXM_WORD_SIZE 4
-#define _COOPMULTITASKING_CORTEXM_THREAD_CONTEXT_WORDS 9 // 8 (base registers) + 1 (for bootstrapping)
+#define COOPMULTITASKING_CORTEXM_WORD_SIZE 4
+#define COOPMULTITASKING_CORTEXM_FIBER_CONTEXT_WORDS 9 // 8 (base registers) + 1 (for bootstrapping)
 
 namespace CoopMultitasking {
 
     /**
-     * Holds partial context information for a thread; the remainder of the thread context is stored on the thread's
-     * stack.
+     * Holds partial context information for a fiber; the remainder of the context is stored on the fiber's stack.
      *
      * NOTE: assembly code expects the initial part of this structure to be well-defined.
      */
-    struct GreenThread final {
+    struct Fiber final {
 
         // BEGIN assembly code expects this ordering
         uint32_t sp;
         uint32_t pc;
         // END assembly code expects this ordering
 
-        GreenThread* next;
+        Fiber* next;
     };
 
 
-    static GreenThread* g_currentThread = nullptr;
+    static Fiber* g_currentFiber = nullptr;
 
     class Init final {
     public:
         Init() {
-            g_currentThread = new GreenThread;
-            g_currentThread->next = g_currentThread;
+            g_currentFiber = new Fiber;
+            g_currentFiber->next = g_currentFiber;
             // The remaining members are set during bootstrapping and the first context switch
         }
     };
@@ -112,20 +111,20 @@ namespace CoopMultitasking {
 
 
         /**
-         * Bootstraps a new thread for execution; a context switch is NOT performed.
+         * Bootstraps a new fiber for execution; a context switch is NOT performed.
          *
          * This function operates only on the provided parameters and doesn't update any globals.
          *
-         * @param newThread The new thread to bootstrap; the new thread should already have a stack allocated that is
+         * @param newFiber The new fiber to bootstrap; the new fiber should already have a stack allocated that is
          *                  double-word aligned.
          * @param func The function that will be called repeatedly via runLoop().
          */
-        static void __attribute__((naked)) __attribute__((noinline)) bootstrapNewThread(
-                    GreenThread* newThread,
+        static void __attribute__((naked)) __attribute__((noinline)) bootstrapNewFiber(
+                    Fiber* newFiber,
                     LoopFunc func ) {
 
             // compiler hints for unused parameter warnings
-            (void)newThread;
+            (void)newFiber;
             (void)func;
 
             asm (
@@ -136,7 +135,7 @@ namespace CoopMultitasking {
 
                 // Temporarily swap stack pointers so that we can bootstrap
                 "mov r2, sp;"
-                "ldr r3, [r0, #0];" // load the stack pointer from the GreenThread 'sp' member
+                "ldr r3, [r0, #0];" // load the stack pointer from the Fiber's 'sp' member
                 "mov sp, r3;"
 
                 // runLoopTrampoline() has a private contract: the single parameter (the loop function) is passed on
@@ -144,11 +143,11 @@ namespace CoopMultitasking {
                 "push {r1};"
 
                 // Set up the appropriate number of registers on the stack so that we don't pop above the stack when
-                // the thread is first yielded to. The values of the registers are irrelevant.
+                // the fiber is first yielded to. The values of the registers are irrelevant.
                 "push {r4-r7};"
                 "push {r4-r7};"
 
-                // We changed the stack pointer so we need to update the 'sp' member of the GreenThread structure
+                // We changed the stack pointer so we need to update the 'sp' member of the Fiber structure
                 "mov r3, sp;"
                 "str r3, [r0, #0];"
 
@@ -156,7 +155,7 @@ namespace CoopMultitasking {
                 "mov sp, r2;"
 
                 // Bounce the call to runLoop through runLoopTrampoline (store the address of runLoopTrampoline into
-                // the new GreenThread's 'pc' member)
+                // the new Fiber's 'pc' member)
                 "ldr r3, =runLoopTrampoline;"
                 "str r3, [r0, #4];"
 
@@ -166,17 +165,15 @@ namespace CoopMultitasking {
 
 
         /**
-         * Switch the thread context from the provided current thread to the provided next thread.
+         * Switch the context from the provided current fiber to the provided next fiber.
          *
          * This function operates only on the provided parameters and doesn't update any globals.
          *
-         * @param currentThread The currently-executing thread. Typically you would pass the global current thread
+         * @param currentFiber The currently-executing fiber. Typically you would pass the global current fiber
          *                      instance.
-         * @param next The thread to switch to.
+         * @param next The fiber to switch to.
          */
-        static void __attribute__((naked)) __attribute__((noinline)) switchContext(
-                GreenThread* current,
-                GreenThread* next ) {
+        static void __attribute__((naked)) __attribute__((noinline)) switchContext( Fiber* current, Fiber* next ) {
 
             // compiler hints for unused parameter warnings
             (void)current;
@@ -189,11 +186,11 @@ namespace CoopMultitasking {
                 // positions the Arduino libraries as a virtual platform), so we'll assume that r9 is designated as v6.
                 // Therefore the calling convention requires us to preserve r4-r11 (v1-v8) and sp.
 
-                // We store 9 words of context information on the stack while suspending a thread. AAPCS requires the
+                // We store 9 words of context information on the stack while suspending a fiber. AAPCS requires the
                 // stack to be word-aligned at all times; furthermore, at public interfaces, the stack must be
-                // double-word aligned. While re-entrancy to the thread can occur at other points in the code (e.g.
-                // when we need to bootstrap a new thread), these are all internal functions and the act of restoring
-                // the thread context will re-align the stack to a double-word.
+                // double-word aligned. While re-entrancy to the fiber can occur at other points in the code (e.g.
+                // when we need to bootstrap a new fiber), these are all internal functions and the act of restoring
+                // the fiber context will re-align the stack to a double-word.
 
                 // The ARMv6-M push instruction encodes register_list as 8 1-bit flags, and so can only access the low
                 // registers (and optionally LR); mov encodes Rm using 4 bits and can thus access the high registers;
@@ -205,16 +202,16 @@ namespace CoopMultitasking {
                 "mov r5, r11;"
                 "push {r2-r5};"
 
-                // Store the stack pointer into the current GreenThread's 'sp' member
+                // Store the stack pointer into the current Fiber's 'sp' member
                 "mov r6, sp;"
                 "str r6, [r0, #0];"
 
-                // Store the return address into the current GreenThread's 'pc' member
+                // Store the return address into the current Fiber's 'pc' member
                 "mov r7, lr;"
                 "str r7, [r0, #4];"
 
 
-                // Load the stack pointer from the next GreenThread's 'sp' member
+                // Load the stack pointer from the next Fiber's 'sp' member
                 "ldr r6, [r1, #0];"
                 "mov sp, r6;"
 
@@ -226,7 +223,7 @@ namespace CoopMultitasking {
                 "mov r11, r5;"
                 "pop {r4-r7};"
 
-                // Load the return address from the next GreenThread's 'pc' member
+                // Load the return address from the next Fiber's 'pc' member
                 "ldr r2, [r1, #4];"
                 "mov pc, r2;"
             );
@@ -244,9 +241,9 @@ namespace CoopMultitasking {
             return;
         }
 
-        auto current = g_currentThread;
-        g_currentThread = current->next;
-        switchContext( current, g_currentThread );
+        auto current = g_currentFiber;
+        g_currentFiber = current->next;
+        switchContext( current, g_currentFiber );
     }
 
 
@@ -258,11 +255,11 @@ namespace CoopMultitasking {
             return Result::NotAllowed;
         }
 
-        auto newThread = new GreenThread;
+        auto newFiber = new Fiber;
 
-        // Account for the thread context information that will be pushed onto the stack during a context switch, so
-        // that the requested stack size is fully-available
-        stackSize += (_COOPMULTITASKING_CORTEXM_THREAD_CONTEXT_WORDS * _COOPMULTITASKING_CORTEXM_WORD_SIZE);
+        // Account for the context information that will be pushed onto the stack during a context switch, so that the
+        // requested stack size is fully-available
+        stackSize += (COOPMULTITASKING_CORTEXM_FIBER_CONTEXT_WORDS * COOPMULTITASKING_CORTEXM_WORD_SIZE);
 
         // AAPCS requires that the stack be word-aligned at all times; furthermore, at public interfaces, the stack
         // must be double-word aligned.
@@ -270,26 +267,26 @@ namespace CoopMultitasking {
         auto pStack = ::memalign( 8, stackExtent );
 
         if ( pStack == nullptr ) {
-            delete newThread;
+            delete newFiber;
             return Result::OutOfMemory;
         }
 
         // AAPCS and ARM Thumb C and C++ compilers always use a full descending stack
-        newThread->sp = (uint32_t)pStack + stackExtent;
+        newFiber->sp = (uint32_t)pStack + stackExtent;
 
-        // NOTE: at this time, this library is loop-only and therefore doesn't allow threads to be stopped, so we'll
+        // NOTE: at this time, this library is loop-only and therefore doesn't allow fibers to be stopped, so we'll
         // skip storing the allocated pointer since we never need to free it
 
-        bootstrapNewThread( newThread, func );
+        bootstrapNewFiber( newFiber, func );
 
 
-        newThread->next = g_currentThread->next;
-        g_currentThread->next = newThread;
+        newFiber->next = g_currentFiber->next;
+        g_currentFiber->next = newFiber;
 
-        auto current = g_currentThread;
-        g_currentThread = newThread;
+        auto current = g_currentFiber;
+        g_currentFiber = newFiber;
 
-        switchContext( current, g_currentThread );
+        switchContext( current, g_currentFiber );
 
         return Result::Success;
     }

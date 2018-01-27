@@ -3,7 +3,7 @@
 [![License][license-image]][license-url]
 [![Contributor Code of Conduct][contributing-image]][contributing-url]
 
-CoopMultitasking is a simple cooperative multitasking library for Arduino and Arduino-compatible development boards that use the ARM Cortex-M0 and M0+ processors. See [Compatibility](#compatibility) for a list of supported products.
+CoopMultitasking is a simple cooperative multitasking library for Arduino and Arduino-compatible development boards that use the ARM Cortex-M0 and M0+ processors (see [Compatibility](#compatibility) for a list of supported products).
 
 
 __Table of Contents__
@@ -190,16 +190,20 @@ Download this repository as a zip file and then use the `Sketch->Include Library
 
 ## Further Information
 
-"Cooperative multitasking" means that there is no scheduler that will suddenly preempt the execution of a thread in order to run another thread; there are no "time slices." Instead, each thread (loop in our case) must periodically and explicitly yield in order to allow other threads to run. All threads must ultimately yield to allow the forward progression of your application across all threads.
+"Cooperative multitasking" means that there is no scheduler that will suddenly preempt the execution of a thread in order to run another thread; there are no "time slices." Instead, each of your loops is run by a "fiber" which you can think of as a lightweight thread that stores information about which piece of your code it is running. Different fibers will be running different parts of your code.
 
-This library is targeting single-core processors, which means that only one thread (and thus, loop) will execute at any given time.
+One fiber (the "main" or "original" fiber) will run the Arduino `loop()` function, and each new loop you create will be run by a new fiber; if you create two new loops then you will have three fibers in total.
+
+Each fiber (and thus loop you write) must periodically and explicitly yield in order to allow other fibers to run. All fibers must ultimately yield to allow the forward progression of your application. See the [Examples](#examples) for what it means to "yield," and see [Call order](#call-order) for a more detailed description of how fibers run your loops.
+
+This library is targeting single-core processors, which means that only one fiber (and thus, loop) can execute at any given time.
 
 
 #### Timing
 
-Once you call `delay()` or `yield()`, other threads are allowed to run; once they have also called `delay()` or `yield()`, the first thread is allowed to run again (the threads run in a round-robin fashion). The amount of time the first thread has to wait before it gets another chance to run depends on how many threads (loops) you have and how long they run before they call `delay()` or `yield()`.
+Once you call `delay()` or `yield()`, other loops are allowed to run; once they have also called `delay()` or `yield()`, the first loop is allowed to run again (the loops run in a round-robin fashion). The amount of time the first loop has to wait before it gets another chance to run depends on how many loops you have and how long they run before they call `delay()` or `yield()`.
 
-You're probably familiar with `delay()`, but `yield()` might be something you haven't used before. Arduino's `delay()` function actually calls `yield()` periodically (about once a millisecond), and it is `yield()` itself that allows other threads to run. To allow all threads to run as often as possible you will want to make sure that nothing ties up the processor without calling `yield()`. For example, you'll generally want to avoid any long-running `for` or `while` loops such as this:
+You're probably familiar with `delay()`, but `yield()` might be something you haven't used before. Arduino's `delay()` function actually calls `yield()` periodically (about once a millisecond), and it is `yield()` itself that allows other loops to run. To allow all loops to run as often as possible you will want to make sure that nothing ties up the processor without calling `yield()`. For example, you'll generally want to avoid any long-running `for` or `while` loops such as this:
 
 ```cpp
 void loop2() {
@@ -217,7 +221,7 @@ In most circumstances you'll want to modify code like that shown above to add a 
 void loop2() {
     for ( int i = 0; i < 1000000; i++ ) {
         // do some work that takes a while
-        yield(); // <-- give other threads a chance to run
+        yield(); // <-- give other loops a chance to run
     }
 
     delay( 1000 );
@@ -225,7 +229,7 @@ void loop2() {
 ```
 
 <br>
-There is a time-cost to switching between threads. Most projects won't need to worry about this, but if you have a lot of loops then you may not want to call `yield()` on every iteration. For example if you have a for-loop with a high iteration count but each iteration takes very little time to run, then it might be better to call `yield()` every few iterations:
+There is a time-cost to switching between loops. Most projects won't need to worry about this, but if you have a lot of loops then you may not want to call `yield()` on every iteration. For example if you have a for-loop with a high iteration count but each iteration takes very little time to run, then it might be better to call `yield()` every few iterations:
 
 ```cpp
 void doLongRunningTask() {
@@ -248,9 +252,9 @@ _You can safely skip this section if you don't use interrupts._
 
 Interrupt handlers &mdash; the functions you pass to `attachInterrupt()` &mdash; will still preempt your code as usual.
 
-If you have written interrupt handlers that use shared global variables then you have experience in marking those variables as `volatile`, which makes it safe to use those variables both from interrupt handlers and normal code. You __don't__ need to mark variables shared by CoopMultitasking threads (loops) as `volatile` __unless__ those variables are also used by interrupt handlers.
+If you have written interrupt handlers that use shared global variables then you have experience in marking those variables as `volatile`, which makes it safe to use those variables both from interrupt handlers and normal code. You __don't__ need to mark variables shared by CoopMultitasking fibers (loops) as `volatile` __unless__ those variables are also used by interrupt handlers.
 
-Calls to `yield()` (and thus `CoopMultitasking::yield()`) and `CoopMultitasking::startLoop()` from an interrupt handler are __ignored__; calls to `delay()` from an interrupt handler will block, but not switch threads. As a general practice, whether you use CoopMultitasking or not, you shouldn't call `delay()` or `yield()` in an interrupt handler &mdash; handlers should be as small and fast as possible.
+Calls to `yield()` (and thus `CoopMultitasking::yield()`) and `CoopMultitasking::startLoop()` from an interrupt handler are __ignored__; calls to `delay()` from an interrupt handler will block, but not switch fibers. As a general practice, whether you use CoopMultitasking or not, you shouldn't call `delay()` or `yield()` in an interrupt handler &mdash; handlers should be as small and fast as possible.
 
 If you'd like to start a loop from an interrupt handler, you should instead start the loop in `setup()` and then notify the loop that the interrupt has occurred:
 
@@ -301,7 +305,7 @@ if ( CoopMultitasking::startLoop( loop2, 1024 )) == CoopMultitasking::Result::Ou
 
 #### Call order
 
-In CoopMultitasking, a "green thread" runs each loop you start, including the main Arduino `loop()`. When you call `delay()` or `yield()`, the current thread is paused and the next thread is resumed (usually from where it too had been previously paused in `delay()` or `yield()`). To understand the execution flow of your code when using CoopMultitasking, let's consider the first example we saw earlier:
+In CoopMultitasking, a "fiber" runs each loop you start, including the main Arduino `loop()`. When you call `delay()` or `yield()`, the current fiber is paused and the next fiber is resumed (usually from where it too had been previously paused in `delay()` or `yield()`). To understand the execution flow of your code when using CoopMultitasking, let's consider the first example we saw earlier:
 
 ```cpp
 #include <CoopMultitasking.h>
@@ -321,7 +325,9 @@ void loop2() {
 }
 ```
 
-The call stack for this code can be visualized as follows &mdash; `>>>` indicates that a function is being called, `<<<` indicates that a function is returning to the code that called it, and the dashes (`---`) indicate where one thread is suspended and the next is resumed:
+The call stack for this code can be visualized as follows:
+
+(`>>>` indicates that a function is being called, `<<<` indicates that a function is returning to the code that called it, and the dashes (`---`) indicate where one fiber is suspended and the next is resumed)
 
 ```
 1.  >>> setup()
@@ -352,7 +358,7 @@ The call stack for this code can be visualized as follows &mdash; `>>>` indicate
 ...and so on...
 ```
 
-Notice how the first time `loop2` is called (line 3), it doesn't return immediately; instead, the call to `delay()` causes `loop2` to pause, and the original thread resumes and returns from `CoopMultitasking::startLoop` (line 5). The original thread then completes `setup()` (line 6) and calls into `loop` (line 7). `loop2` gets another chance to run once `loop` calls `delay()` (line 8).
+Notice how the first time `loop2` is called (line 3), it doesn't return immediately; instead, the call to `delay()` causes `loop2` to pause, and the original fiber resumes and returns from `CoopMultitasking::startLoop` (line 5). The original fiber then completes `setup()` (line 6) and calls into `loop` (line 7). `loop2` gets another chance to run once `loop` calls `delay()` (line 8).
 
 Here is the first example again, with comments on the call order:
 
@@ -423,7 +429,7 @@ If you're using another library that also implements Arduino's `::yield()` funct
 #include <CoopMultitasking.h>
 ```
 
-This will prevent CoopMultitasking from defining `::yield()`. You can still use this library's yield by calling `CoopMultitasking::yield()`, but keep in mind that the Arduino functions `delay()` and `yield()` will NOT call CoopMultitasking's yield &mdash; they will call the yield defined by the other library you are using. The impact of this is that CoopMultitasking won't be able to switch threads except when `CoopMultitasking::yield()` is explicitly called.
+This will prevent CoopMultitasking from defining `::yield()`. You can still use this library's yield by calling `CoopMultitasking::yield()`, but keep in mind that the Arduino functions `delay()` and `yield()` will NOT call CoopMultitasking's yield &mdash; they will call the yield defined by the other library you are using. The impact of this is that CoopMultitasking won't be able to switch fibers except when `CoopMultitasking::yield()` is explicitly called.
 
 
 #### Other compiler errors
@@ -441,13 +447,13 @@ Make sure the library supports your development board &mdash; it has to be a boa
 
 > This section is to document technical decisions in the library and won't impact the majority of users.
 
-#### Thread stack
+#### Stack size
 
-The stack size you request when calling `CoopMultitasking::startLoop()` will be increased by 36 bytes (to account for thread context information) and will be 8-byte-aligned (which is a processor/call procedure requirement); therefore, your stack may consume 36-43 more bytes than you request. Protected memory, canaries, etc., are not used, and stack overflows will lead to undefined behavior; that is, corruption of adjacent memory directly _below_ the stack (ARM uses a full descending stack).
+The stack size you request when calling `CoopMultitasking::startLoop()` will be increased by 36 bytes (to account for context information) and will be 8-byte-aligned (which is a processor/call procedure requirement); therefore, your stack may consume 36-43 more bytes than you request. Protected memory, canaries, etc., are not used, and stack overflows will lead to undefined behavior; that is, corruption of adjacent memory directly _below_ the stack (ARM uses a full descending stack).
 
 #### Requirement of each loop to explicitly call `delay()`/`yield()`
 
-The requirement (if you want forward progression across all threads) of calling `delay()` or `yield()` in your loops is for consistency with Arduino's runloop, which doesn't call `yield()` in-between iterations:
+The requirement (if you want forward progression across all fibers) of calling `delay()` or `yield()` in your loops is for consistency with Arduino's runloop, which doesn't call `yield()` in-between iterations:
 
 ```cpp
 setup();

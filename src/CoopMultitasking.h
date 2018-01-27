@@ -1,5 +1,5 @@
-#ifndef _COOPMULTITASKING_COOPMULTITASKING_H_
-#define _COOPMULTITASKING_COOPMULTITASKING_H_
+#ifndef COOPMULTITASKING_COOPMULTITASKING_H_
+#define COOPMULTITASKING_COOPMULTITASKING_H_
 
 #if ! defined(ARDUINO_ARCH_SAMC) && ! defined(ARDUINO_ARCH_SAMD) && ! defined(ARDUINO_ARCH_SAML)
 #error The CoopMultitasking library currently only supports ARM Cortex-M0/M0+ processors (e.g. development boards based on Atmel/Microchip SAM C, D, and L MCUs).
@@ -12,7 +12,7 @@
 namespace CoopMultitasking {
 
     /**
-     * Yields control of the current thread and allows the next thread to run.
+     * Yields control of the current fiber and allows the next fiber to run.
      *
      * Calls to this function from an interrupt handler (the function you pass to attachInterrupt()) are IGNORED.
      *
@@ -20,13 +20,13 @@ namespace CoopMultitasking {
      * ::yield().
      *
      * CoopMultitasking::yield() MUST be periodically called, typically via the Arduino functions ::delay() or
-     * ::yield(); if it isn't, the other threads will never have a chance to run.
+     * ::yield(); if it isn't, the other fibers will never have a chance to run.
      */
     extern void yield();
 
 
     /**
-     * Starts a new thread that runs the provided loop.
+     * Starts a new fiber that runs the provided loop.
      *
      * Calls to this function from an interrupt handler (the function you pass to attachInterrupt()) are IGNORED.
      *
@@ -37,7 +37,7 @@ namespace CoopMultitasking {
      *
      * @param func The function to call repeatedly in a loop; it is akin to the loop() function you write in your
      *             Arduino sketch; e.g. void loop2() { ... }
-     * @param stackSize The stack size for the new thread. The actual allocated size will be slightly larger than the
+     * @param stackSize The stack size for the new fiber. The actual allocated size will be slightly larger than the
      *                  requested size by about 40 bytes; however, your code should never expect to use more than the
      *                  requested size.
      * @return One of the CoopMultitasking::Result values:
