@@ -46,32 +46,23 @@ namespace CoopMultitasking {
     extern "C" {
 
         /**
-         * Runs an Arduino-style loop function.
-         */
-        static void __attribute__((noinline)) __attribute__((used)) runLoop( LoopFunc func ) {
-            while ( true ) {
-                func();
-            }
-        }
-
-
-        /**
-         * Acts as a trampoline between 'runLoop' and an assembly caller that needs to pass the loop function on the
-         * stack.
+         * Entry point for new fibers -- acts as a trampoline to an Arduino-style run loop. The run-loop function is
+         * passed on the stack to facilitate bootstrapping.
          *
          * IMPORTANT: This function has the following private contract: the single parameter (the loop function) is
          * passed on the stack.
          *
          * @param (a word passed on the stack) The loop function address.
          */
-        static void __attribute__((naked)) __attribute__((noinline)) __attribute__((used)) runLoopTrampoline() {
+        static void __attribute__((naked)) __attribute__((noinline)) __attribute__((used)) fiberEntryPoint() {
             asm (
                 // AAPCS requires the stack to be word-aligned at all times; furthermore, at public interfaces,
                 // the stack must be double-word aligned. Popping the bootstrapped stack will restore double-word
                 // alignment.
 
-                "pop {r0};"
-                "bl runLoop;"
+                "pop {r4};" // we're at the top of the call stack for new fibers, so we can stomp on r4
+                "1: blx r4;"
+                "b 1b;"
             );
         }
 
@@ -156,7 +147,7 @@ namespace CoopMultitasking {
 
                 // Bounce the call to runLoop through runLoopTrampoline (store the address of runLoopTrampoline into
                 // the new Fiber's 'pc' member)
-                "ldr r3, =runLoopTrampoline;"
+                "ldr r3, =fiberEntryPoint;"
                 "str r3, [r0, #4];"
 
                 "bx lr;"
