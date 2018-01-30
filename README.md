@@ -11,9 +11,9 @@ __Table of Contents__
 * [Examples](#examples)
 * [Compatibility](#compatibility)
 * [Installation](#installation)
-* [Further Information](#further-information)
+* [Details](#details)
 * [Troubleshooting](#troubleshooting)
-* [Implementation Details](#implementation-details)
+* [Implementation](#implementation)
 
 
 
@@ -23,20 +23,18 @@ After including the library header, call `CoopMultitasking::startLoop()` to run 
 
 The new loop will run exclusively until you call `delay()` or `yield()`, at which point the next loop is allowed to run, and so on. Eventually your first loop will become the current loop and get another chance to run.
 
-You're probably used to Arduino's `delay()` function causing the bulk of your code to block, but when using CoopMultitasking `delay()` will only block the loop in which you call it. Another loop gets to run while the first is blocked in `delay()`.
+You're probably used to Arduino's `delay()` function causing the bulk of your code to block, but when using CoopMultitasking, `delay()` will only block the loop in which you call it. Another loop gets to run while the first is blocked in `delay()`.
 
 
 
 ## Examples
-
-> TODO document stack size and/or provide default
 
 Here's a simple example:
 ```cpp
 #include <CoopMultitasking.h>
 
 void setup() {
-    CoopMultitasking::startLoop( loop2, 1024 );
+    CoopMultitasking::startLoop( loop2 );
 }
 
 void loop() {
@@ -52,14 +50,14 @@ void loop2() {
 
 
 <br>
-You can start as many loops as you want, constrained only by the memory available on your device:
+You can start several loops, constrained only by the memory available on your device:
 
 ```cpp
 #include <CoopMultitasking.h>
 
 void setup() {
-    CoopMultitasking::startLoop( loop2, 1024 );
-    CoopMultitasking::startLoop( loop3, 1024 );
+    CoopMultitasking::startLoop( loop2 );
+    CoopMultitasking::startLoop( loop3 );
 }
 
 void loop() {
@@ -77,7 +75,8 @@ void loop3() {
     delay( 1000 );
 }
 ```
-> TODO link to stack size notes
+
+Typically you would start a handul of additional loops in `setup()`. Each loop you start will consume a fixed amount of memory which will limit the total number of loops you can start on your device. If you're starting a lot of loops, you'll have to make sure you leave enough free memory available for the rest of your application; see [Stack size](#stack-size) for more information on memory usage.
 
 
 <br>
@@ -90,7 +89,7 @@ unsigned long previousMS = 0;
 unsigned long intervalMS = 500;
 
 void setup() {
-    CoopMultitasking::startLoop( loop2, 1024 );
+    CoopMultitasking::startLoop( loop2 );
 }
 
 void loop() {
@@ -127,7 +126,7 @@ const int BUTTON_PIN = 2;
 void setup() {
     pinMode( BUTTON_PIN, INPUT_PULLUP );
 
-    CoopMultitasking::startLoop( loop2, 1024 );
+    CoopMultitasking::startLoop( loop2 );
 }
 
 void loop() {
@@ -188,7 +187,7 @@ Download this repository as a zip file and then use the `Sketch->Include Library
 
 
 
-## Further Information
+## Details
 
 "Cooperative multitasking" means that there is no scheduler that will suddenly preempt the execution of a thread in order to run another thread; there are no "time slices." Instead, each of your loops is run by a "fiber" which you can think of as a lightweight thread that stores information about which piece of your code it is running. Different fibers will be running different parts of your code.
 
@@ -197,6 +196,31 @@ One fiber (the "main" or "original" fiber) will run the Arduino `loop()` functio
 Each fiber (and thus loop you write) must periodically and explicitly yield in order to allow other fibers to run. All fibers must ultimately yield to allow the forward progression of your application. See the [Examples](#examples) for what it means to "yield," and see [Call order](#call-order) for a more detailed description of how fibers run your loops.
 
 This library is targeting single-core processors, which means that only one fiber (and thus, loop) can execute at any given time.
+
+
+#### Stack Size
+
+> Most users should be fine using the default stack size and can skip this section. If you're concerned that your application is using a lot of memory, or if you're starting a lot of loops, or if you're making very deep call stacks (e.g. recursion), read on.
+
+Programs need some memory set aside in order to run &mdash; this memory is called the stack. The stack is like a scratchpad for your program, temporarily holding the values of processor registers and local variables when a subroutine is called.
+
+The stack is separate from the heap, which is used for dynamic memory allocated at runtime (e.g. `malloc()` and `new`). On the Arduino, you can picture the stack and heap as starting at opposite ends of the memory on your device: as each grows, it consumes the unused portion of memory in between until there is no longer any free memory available.
+
+Similar to threads, each fiber needs its own, separate stack. In CoopMultitasking, fiber stacks are allocated from the heap when you call `CoopMultitasking::startLoop()`. The "main" fiber that runs the Arduino `loop()` is the exception: this fiber uses the main stack like the rest of your Arduino code.
+
+In the examples we've seen, the stack is given a default size, but you can provide your own stack size if you need to fine-tune your application. Keep in mind that if the stack is too small your application may experience "stack overflow," which will cause unpredictable results at runtime. If the stack is too large your application may run out of memory (e.g. calls to `malloc()`, `new`, and `CoopMultitasking::startLoop()` will fail).
+
+To provide an explicit stack size in bytes, pass it as the second parameter to `CoopMultitasking::startLoop()`:
+
+```cpp
+void setup() {
+    CoopMultitasking::startLoop( loop5, 2048 );
+}
+```
+
+See [CoopMultitasking.h](#src/CoopMultitasking.h) for details.
+
+The default stack size is 4 KiB. When choosing a stack size, keep in mind that interrupt handlers use the stack of the current context (fiber) when the interrupt is triggered. Be cautious with very small stacks.
 
 
 #### Timing
@@ -267,7 +291,7 @@ void setup() {
     pinMode( BUTTON_A, INPUT_PULLUP );
     attachInterrupt( digitalPinToInterrupt( BUTTON_A ), isrButton, FALLING );
 
-    CoopMultitasking::startLoop( triggeredLoop, 1024 );
+    CoopMultitasking::startLoop( triggeredLoop );
 }
 
 void loop() {
@@ -296,7 +320,7 @@ void isrButton() {
 `CoopMultitasking::startLoop()` returns a value indicating whether the loop was started. You can take a look at [CoopMultitasking.h](#src/CoopMultitasking.h) to see all of the possible values, but the out-of-memory condition is the one you likely want to check for:
 
 ```cpp
-if ( CoopMultitasking::startLoop( loop2, 1024 )) == CoopMultitasking::Result::OutOfMemory ) {
+if ( CoopMultitasking::startLoop( loop2 )) == CoopMultitasking::Result::OutOfMemory ) {
     // (do whatever is appropriate for your project)
     Serial.println( "Failed to start loop: OUT OF MEMORY!" );
 }
@@ -311,7 +335,7 @@ In CoopMultitasking, a "fiber" runs each loop you start, including the main Ardu
 #include <CoopMultitasking.h>
 
 void setup() {
-    CoopMultitasking::startLoop( loop2, 1024 );
+    CoopMultitasking::startLoop( loop2 );
 }
 
 void loop() {
@@ -368,7 +392,7 @@ Here is the first example again, with comments on the call order:
 void setup() {
     // Start loop2 -- it will run immediately, and startLoop() won't return until loop2()
     // calls delay() or yield()
-    CoopMultitasking::startLoop( loop2, 1024 );
+    CoopMultitasking::startLoop( loop2 );
 
     // Now that loop2() has yielded (in this case, by calling delay()), execution will
     // continue here.
@@ -414,7 +438,7 @@ void setup() {
     Serial.begin( 9600 );
     while( ! Serial ); // wait for serial connection to be established
 
-    CoopMultitasking::startLoop( loop2, 1024 );
+    CoopMultitasking::startLoop( loop2 );
     // ...
 }
 ```
@@ -443,13 +467,13 @@ Make sure the library supports your development board &mdash; it has to be a boa
 
 
 
-## Implementation Details
+## Implementation
 
 > This section is to document technical decisions in the library and won't impact the majority of users.
 
 #### Stack size
 
-The stack size you request when calling `CoopMultitasking::startLoop()` will be increased by 36 bytes (to account for context information) and will be 8-byte-aligned (which is a processor/call procedure requirement); therefore, your stack may consume 36-43 more bytes than you request. Protected memory, canaries, etc., are not used, and stack overflows will lead to undefined behavior; that is, corruption of adjacent memory directly _below_ the stack (ARM uses a full descending stack).
+The stack size you request when calling `CoopMultitasking::startLoop()` will be rounded up if necessary in order to be divisible by 8, and will be 8-byte-aligned (which is a processor/call procedure requirement); therefore, your stack may consume 0-14 more bytes than you request. Protected memory, canaries, etc., are not used, and stack overflows will lead to undefined behavior; that is, corruption of adjacent memory directly _below_ the stack (ARM uses a full descending stack).
 
 #### Requirement of each loop to explicitly call `delay()`/`yield()`
 

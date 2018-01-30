@@ -9,6 +9,20 @@
 
 #include "CoopMultitasking/Types.h"
 
+
+/**
+ * Coming up with a default is a bit tricky. We want to follow Arduino's "Be kind to the end user" philosophy. From
+ * what I can tell the products we're targeting all have 32 KiB SRAM, which is a substantial increase for users coming
+ * from the older AVR Arduino's (i.e. 4 KiB). In my testing, we have nearly 24 KiB available in setup().
+ *
+ * If we aim low, we leave more memory available and allow more loops, but risk stack overflow for unsuspecting users
+ * (particularly considering that ISRs will use the stack of the current context).
+ * If we aim high, we reduce the risk of overflow at the cost of fewer loops and greater chance that unsuspecting users
+ * will hit an out-of-memory condition.
+ */
+#define COOPMULTITASKING_DEFAULT_STACK_SIZE 4096
+
+
 namespace CoopMultitasking {
 
     /**
@@ -37,18 +51,19 @@ namespace CoopMultitasking {
      *
      * @param func The function to call repeatedly in a loop; it is akin to the loop() function you write in your
      *             Arduino sketch; e.g. void loop2() { ... }
-     * @param stackSize The stack size for the new fiber. The actual allocated size will be slightly larger than the
-     *                  requested size by about 40 bytes; however, your code should never expect to use more than the
-     *                  requested size.
+     * @param stackSize The stack size for the new fiber; a multiple of 8 is recommended. The actual allocated size
+     *                  will be no less than requested, and will be rounded up if necessary in order to be divisible by
+     *                  8, and will be 8-byte-aligned. Your code should never expect to use more than the requested
+     *                  size. Be careful about using small stack sizes: interrupt handlers use the stack of the current
+     *                  context.
      * @return One of the CoopMultitasking::Result values:
      *             CoopMultitasking::Success -- No error; the loop was started.
      *             CoopMultitasking::OutOfMemory -- There wasn't enough memory to allocate the requested stack size.
      *                 You can try again with a smaller value.
      *             CoopMultitasking::NotAllowed -- startLoop() was called from an interrupt handler; calls from
      *                 handlers are ignored.
-     * [TODO provide default stack size?]
      */
-    extern Result startLoop( LoopFunc func, uint32_t stackSize );
+    extern Result startLoop( LoopFunc func, uint32_t stackSize = COOPMULTITASKING_DEFAULT_STACK_SIZE );
 }
 
 

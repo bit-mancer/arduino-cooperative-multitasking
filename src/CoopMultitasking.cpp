@@ -6,9 +6,6 @@
 // between the implementation and the API header are used (such as Types.h).
 #include "CoopMultitasking/Types.h"
 
-#define COOPMULTITASKING_CORTEXM_WORD_SIZE 4
-#define COOPMULTITASKING_CORTEXM_FIBER_CONTEXT_WORDS 9 // 8 (base registers) + 1 (for bootstrapping)
-
 namespace CoopMultitasking {
 
     /**
@@ -247,10 +244,6 @@ namespace CoopMultitasking {
         }
 
         auto newFiber = new Fiber;
-
-        // Account for the context information that will be pushed onto the stack during a context switch, so that the
-        // requested stack size is fully-available
-        stackSize += (COOPMULTITASKING_CORTEXM_FIBER_CONTEXT_WORDS * COOPMULTITASKING_CORTEXM_WORD_SIZE);
 
         // AAPCS requires that the stack be word-aligned at all times; furthermore, at public interfaces, the stack
         // must be double-word aligned.
