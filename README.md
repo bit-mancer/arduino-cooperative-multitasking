@@ -2,6 +2,7 @@
 
 [![License][license-image]][license-url]
 [![Contributor Code of Conduct][contributing-image]][contributing-url]
+[![Build Status][travis-image]][travis-url]
 
 CoopMultitasking is a simple cooperative multitasking library for Arduino and Arduino-compatible development boards that use the ARM Cortex-M0 and M0+ processors (see [Compatibility](#compatibility) for a list of supported products).
 
@@ -481,3 +482,6 @@ for (;;) {
 
 [contributing-image]: https://img.shields.io/badge/contributing-CoC-blue.svg
 [contributing-url]: CONTRIBUTING.md
+
+[travis-image]: https://travis-ci.org/bit-mancer/arduino-cooperative-multitasking.svg?branch=master
+[travis-url]: https://travis-ci.org/bit-mancer/arduino-cooperative-multitasking
