@@ -126,8 +126,8 @@ namespace CoopMultitasking {
                 "ldr r3, [r0, #0];" // load the stack pointer from the Fiber's 'sp' member
                 "mov sp, r3;"
 
-                // runLoopTrampoline() has a private contract: the single parameter (the loop function) is passed on
-                // the stack. The stack will be popped and double-word alignment restored by the trampoline.
+                // fiberEntryPoint() has a private contract: the single parameter (the loop function) is passed on the
+                // stack. The stack will be popped and double-word alignment restored by the trampoline.
                 "push {r1};"
 
                 // Set up the appropriate number of registers on the stack so that we don't pop above the stack when
@@ -142,8 +142,8 @@ namespace CoopMultitasking {
                 // Restore the stack pointer
                 "mov sp, r2;"
 
-                // Bounce the call to runLoop through runLoopTrampoline (store the address of runLoopTrampoline into
-                // the new Fiber's 'pc' member)
+                // Set the entry point for the fiber (store the address of fiberEntryPoint into the new fiber's 'pc'
+                // member)
                 "ldr r3, =fiberEntryPoint;"
                 "str r3, [r0, #4];"
 
