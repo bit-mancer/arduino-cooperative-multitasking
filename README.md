@@ -75,7 +75,7 @@ void loop3() {
 }
 ```
 
-Typically you would start a handul of additional loops in `setup()`. Each loop you start will consume a fixed amount of memory which will limit the total number of loops you can start on your device. If you're starting a lot of loops, you'll have to make sure you leave enough free memory available for the rest of your application; see [Stack size](#stack-size) for more information on memory usage.
+Typically you would start a handul of additional loops in `setup()`. Each loop you start will consume a fixed amount of memory which will limit the total number of loops you can start on your device. If you're starting a lot of loops, you'll have to make sure you leave enough free memory available for the rest of your application; see [Stack Size](#stack-size) for more information on memory usage.
 
 
 If your existing code is using `millis()` in a tight loop, you'll want to modify the code to also call `yield()` &mdash; this will allow your other loops to run:
@@ -189,7 +189,7 @@ Download this repository as a zip file and then use the `Sketch->Include Library
 
 One fiber (the "main" or "original" fiber) will run the Arduino `loop()` function, and each new loop you create will be run by a new fiber; if you create two new loops then you will have three fibers in total.
 
-Each fiber (and thus loop you write) must periodically and explicitly yield in order to allow other fibers to run. All fibers must ultimately yield to allow the forward progression of your application. See the [Examples](#examples) for what it means to "yield," and see [Call order](#call-order) for a more detailed description of how fibers run your loops.
+Each fiber (and thus loop you write) must periodically and explicitly yield in order to allow other fibers to run. All fibers must ultimately yield to allow the forward progression of your application. See the [Examples](#examples) for what it means to "yield," and see [Call Order](#call-order) for a more detailed description of how fibers run your loops.
 
 This library is targeting single-core processors, which means that only one fiber (and thus, loop) can execute at any given time.
 
@@ -213,7 +213,7 @@ void setup() {
 }
 ```
 
-See [CoopMultitasking.h](#src/CoopMultitasking.h) for details.
+See [CoopMultitasking.h](src/CoopMultitasking.h) for details.
 
 The default stack size is 4 KiB. When choosing a stack size, keep in mind that interrupt handlers use the stack of the current context (fiber) when the interrupt is triggered. Be cautious of very small stacks.
 
@@ -307,7 +307,7 @@ void isrButton() {
 
 #### Handling Error Conditions
 
-`CoopMultitasking::startLoop()` returns a value indicating whether the loop was started. You can take a look at [CoopMultitasking.h](#src/CoopMultitasking.h) to see all of the possible values, but the out-of-memory condition is the one you likely want to check for:
+`CoopMultitasking::startLoop()` returns a value indicating whether the loop was started. You can take a look at [CoopMultitasking.h](src/CoopMultitasking.h) to see all of the possible values, but the out-of-memory condition is the one you likely want to check for:
 ```cpp
 if ( CoopMultitasking::startLoop( loop2 )) == CoopMultitasking::Result::OutOfMemory ) {
     // (do whatever is appropriate for your project)
@@ -460,7 +460,7 @@ Make sure the library supports your development board &mdash; it has to be a boa
 
 The stack size you request when calling `CoopMultitasking::startLoop()` will be rounded up if necessary in order to be divisible by 8, and will be 8-byte-aligned (which is a processor/call procedure requirement); therefore, your stack may consume 0-14 more bytes than you request. Don't use more stack space than you request. Protected memory, canaries, etc., are not used, and stack overflows will lead to undefined behavior; that is, corruption of adjacent memory directly _below_ the stack (ARM uses a full descending stack).
 
-The default stack size is 4 KiB. See [CoopMultitasking.h](#src/CoopMultitasking.h) for a discussion of this choice.
+The default stack size is 4 KiB. See [CoopMultitasking.h](src/CoopMultitasking.h) for a discussion of this choice.
 
 
 #### Requirement Of Each Loop To Explicitly Call `delay()`/`yield()`
