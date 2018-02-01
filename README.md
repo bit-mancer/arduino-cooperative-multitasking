@@ -164,6 +164,7 @@ __The following products should be compatible:__
 * Arduino MKR WAN 1300
 * Arduino MKR ZERO
 * Arduino MKR1000 WIFI
+* Arduino MKRFOX1200
 * Arduino Tian
 * Arduino Zero
 * _similar Arduino and Arduino-compatible development boards_

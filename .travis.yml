@@ -1,0 +1,31 @@
+# Use PlatformIO's Arduino compiler to build the library + examples against the list of boards in 'env'
+# (https://www.pololu.com/blog/654/continuous-testing-for-arduino-libraries-using-platformio-and-travis-ci)
+language: python
+
+cache:
+    directories:
+        - "~/.platformio"
+
+install: pip install -U platformio
+
+env:
+    - BOARD=adafruit_feather_m0
+    - BOARD=adafruit_feather_m0_express
+    - BOARD=adafruit_gemma_m0
+    - BOARD=adafruit_metro_m0
+    - BOARD=adafruit_trinket_m0
+    - BOARD=mzeroUSB # M0
+    - BOARD=mzeropro # M0 Pro (debug port)
+    - BOARD=mzeroproUSB # M0 Pro (native USB)
+    - BOARD=mkr1000USB # MKR1000 WIFI
+    - BOARD=mkrfox1200
+    - BOARD=mkrzero # MKR ZERO
+    - BOARD=tian
+    - BOARD=zero # Zero (debug port)
+    - BOARD=zeroUSB # Zero (native USB)
+
+script:
+    - set -eo pipefail;
+    for e in examples/*; do
+        platformio ci --board=$BOARD --lib=. $e/*;
+    done
