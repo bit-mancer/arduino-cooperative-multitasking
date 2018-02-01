@@ -13,7 +13,7 @@
 /**
  * Coming up with a default is a bit tricky. We want to follow Arduino's "Be kind to the end user" philosophy. From
  * what I can tell the products we're targeting all have 32 KiB SRAM, which is a substantial increase for users coming
- * from the older AVR Arduino's (i.e. 4 KiB). In my testing, we have nearly 24 KiB available in setup().
+ * from the older AVR Arduino's (i.e. 2-4 KiB). In my testing, we have nearly 24 KiB available in setup().
  *
  * If we aim low, we leave more memory available and allow more loops, but risk stack overflow for unsuspecting users
  * (particularly considering that ISRs will use the stack of the current context).

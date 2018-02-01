@@ -49,9 +49,7 @@ void loop2() {
 ```
 
 
-<br>
 You can start several loops, constrained only by the memory available on your device:
-
 ```cpp
 #include <CoopMultitasking.h>
 
@@ -79,9 +77,7 @@ void loop3() {
 Typically you would start a handul of additional loops in `setup()`. Each loop you start will consume a fixed amount of memory which will limit the total number of loops you can start on your device. If you're starting a lot of loops, you'll have to make sure you leave enough free memory available for the rest of your application; see [Stack size](#stack-size) for more information on memory usage.
 
 
-<br>
 If your existing code is using `millis()` in a tight loop, you'll want to modify the code to also call `yield()` &mdash; this will allow your other loops to run:
-
 ```cpp
 #include <CoopMultitasking.h>
 
@@ -115,9 +111,7 @@ __It's important that every loop ultimately calls either `delay()` or `yield()`.
 _If you're unfamiliar with `yield()`, see the [Timing](#timing) section._
 
 
-<br>
 If you have existing code in a tight loop for a long-running task, you can add `yield()` to allow other loops to run periodically during the task.
-
 ```cpp
 #include <CoopMultitasking.h>
 
@@ -206,12 +200,11 @@ Programs need some memory set aside in order to run &mdash; this memory is calle
 
 The stack is separate from the heap, which is used for dynamic memory allocated at runtime (e.g. `malloc()` and `new`). On the Arduino, you can picture the stack and heap as starting at opposite ends of the memory on your device: as each grows, it consumes the unused portion of memory in between until there is no longer any free memory available.
 
-Similar to threads, each fiber needs its own, separate stack. In CoopMultitasking, fiber stacks are allocated from the heap when you call `CoopMultitasking::startLoop()`. The "main" fiber that runs the Arduino `loop()` is the exception: this fiber uses the main stack like the rest of your Arduino code.
+Similar to threads, each fiber needs its own, separate stack. In CoopMultitasking, fiber stacks are allocated from the heap when you call `CoopMultitasking::startLoop()`. The "main" fiber that runs the Arduino `loop()` is the exception: this fiber uses the main stack described in the paragraph above.
 
-In the examples we've seen, the stack is given a default size, but you can provide your own stack size if you need to fine-tune your application. Keep in mind that if the stack is too small your application may experience "stack overflow," which will cause unpredictable results at runtime. If the stack is too large your application may run out of memory (e.g. calls to `malloc()`, `new`, and `CoopMultitasking::startLoop()` will fail).
+In the examples we've seen the stack is given a default size, but you can provide your own stack size if you need to fine-tune your application. Keep in mind that if the stack is too small your application may experience "stack overflow," which will cause unpredictable results at runtime. If the stack is too large your application may run out of memory (e.g. calls to `malloc()`, `new`, and `CoopMultitasking::startLoop()` will fail).
 
 To provide an explicit stack size in bytes, pass it as the second parameter to `CoopMultitasking::startLoop()`:
-
 ```cpp
 void setup() {
     CoopMultitasking::startLoop( loop5, 2048 );
@@ -220,7 +213,7 @@ void setup() {
 
 See [CoopMultitasking.h](#src/CoopMultitasking.h) for details.
 
-The default stack size is 4 KiB. When choosing a stack size, keep in mind that interrupt handlers use the stack of the current context (fiber) when the interrupt is triggered. Be cautious with very small stacks.
+The default stack size is 4 KiB. When choosing a stack size, keep in mind that interrupt handlers use the stack of the current context (fiber) when the interrupt is triggered. Be cautious of very small stacks.
 
 
 #### Timing
@@ -228,7 +221,6 @@ The default stack size is 4 KiB. When choosing a stack size, keep in mind that i
 Once you call `delay()` or `yield()`, other loops are allowed to run; once they have also called `delay()` or `yield()`, the first loop is allowed to run again (the loops run in a round-robin fashion). The amount of time the first loop has to wait before it gets another chance to run depends on how many loops you have and how long they run before they call `delay()` or `yield()`.
 
 You're probably familiar with `delay()`, but `yield()` might be something you haven't used before. Arduino's `delay()` function actually calls `yield()` periodically (about once a millisecond), and it is `yield()` itself that allows other loops to run. To allow all loops to run as often as possible you will want to make sure that nothing ties up the processor without calling `yield()`. For example, you'll generally want to avoid any long-running `for` or `while` loops such as this:
-
 ```cpp
 void loop2() {
     for ( int i = 0; i < 1000000; i++ ) {
@@ -240,7 +232,6 @@ void loop2() {
 ```
 
 In most circumstances you'll want to modify code like that shown above to add a `yield()` in the middle of your long-running tasks:
-
 ```cpp
 void loop2() {
     for ( int i = 0; i < 1000000; i++ ) {
@@ -252,9 +243,7 @@ void loop2() {
 }
 ```
 
-<br>
 There is a time-cost to switching between loops. Most projects won't need to worry about this, but if you have a lot of loops then you may not want to call `yield()` on every iteration. For example if you have a for-loop with a high iteration count but each iteration takes very little time to run, then it might be better to call `yield()` every few iterations:
-
 ```cpp
 void doLongRunningTask() {
     for ( int i = 0; i < 10000; i++ ) {
@@ -278,10 +267,9 @@ Interrupt handlers &mdash; the functions you pass to `attachInterrupt()` &mdash;
 
 If you have written interrupt handlers that use shared global variables then you have experience in marking those variables as `volatile`, which makes it safe to use those variables both from interrupt handlers and normal code. You __don't__ need to mark variables shared by CoopMultitasking fibers (loops) as `volatile` __unless__ those variables are also used by interrupt handlers.
 
-Calls to `yield()` (and thus `CoopMultitasking::yield()`) and `CoopMultitasking::startLoop()` from an interrupt handler are __ignored__; calls to `delay()` from an interrupt handler will block, but not switch fibers. As a general practice, whether you use CoopMultitasking or not, you shouldn't call `delay()` or `yield()` in an interrupt handler &mdash; handlers should be as small and fast as possible.
+Calls to `yield()` (and thus `CoopMultitasking::yield()`) and `CoopMultitasking::startLoop()` from an interrupt handler are __ignored__; calls to `delay()` from an interrupt handler will block, but __won't__ switch fibers. As a general practice, whether you use CoopMultitasking or not, you shouldn't call `delay()` or `yield()` in an interrupt handler &mdash; handlers should be as small and fast as possible.
 
 If you'd like to start a loop from an interrupt handler, you should instead start the loop in `setup()` and then notify the loop that the interrupt has occurred:
-
 ```cpp
 #define BUTTON_A 9
 
@@ -318,7 +306,6 @@ void isrButton() {
 #### Handling Error Conditions
 
 `CoopMultitasking::startLoop()` returns a value indicating whether the loop was started. You can take a look at [CoopMultitasking.h](#src/CoopMultitasking.h) to see all of the possible values, but the out-of-memory condition is the one you likely want to check for:
-
 ```cpp
 if ( CoopMultitasking::startLoop( loop2 )) == CoopMultitasking::Result::OutOfMemory ) {
     // (do whatever is appropriate for your project)
@@ -330,7 +317,6 @@ if ( CoopMultitasking::startLoop( loop2 )) == CoopMultitasking::Result::OutOfMem
 #### Call Order
 
 In CoopMultitasking, a "fiber" runs each loop you start, including the main Arduino `loop()`. When you call `delay()` or `yield()`, the current fiber is paused and the next fiber is resumed (usually from where it too had been previously paused in `delay()` or `yield()`). To understand the execution flow of your code when using CoopMultitasking, let's consider the first example we saw earlier:
-
 ```cpp
 #include <CoopMultitasking.h>
 
@@ -385,7 +371,6 @@ The call stack for this code can be visualized as follows:
 Notice how the first time `loop2` is called (line 3), it doesn't return immediately; instead, the call to `delay()` causes `loop2` to pause, and the original fiber resumes and returns from `CoopMultitasking::startLoop` (line 5). The original fiber then completes `setup()` (line 6) and calls into `loop` (line 7). `loop2` gets another chance to run once `loop` calls `delay()` (line 8).
 
 Here is the first example again, with comments on the call order:
-
 ```cpp
 #include <CoopMultitasking.h>
 
@@ -431,8 +416,7 @@ Make sure _every_ loop eventually calls either `delay()` or `yield()` &mdash; if
 
 #### Example Code
 
-If you run the example code exactly as written, you may notice that `This is the normal Arduino loop.` is printed _before_ `This is our new loop!` in your serial monitor, even though `loop2()` runs before `loop()` &mdash; if you see this, it's because your serial connection has yet to be established the first time `loop2()` runs and calls `Serial.println()`. You can add the following code to your setup function to wait for the serial connection before starting your loops:
-
+If you run the example code in the readme exactly as written you may notice that the message `This is the normal Arduino loop.` is printed _before_ `This is our new loop!` in your serial monitor, even though `loop2()` runs before `loop()` &mdash; if you see this, it's because your serial connection has yet to be established the first time `loop2()` runs and calls `Serial.println()`. You can add the following code to your setup function to wait for the serial connection before starting your loops:
 ```cpp
 void setup() {
     Serial.begin( 9600 );
@@ -447,7 +431,6 @@ void setup() {
 #### `yield()` Is Already Defined
 
 If you're using another library that also implements Arduino's `::yield()` function, then you can define `COOPMULTITASKING_NO_YIELD_DEFINE` _before_ including the CoopMultitasking header:
-
 ```cpp
 #define COOPMULTITASKING_NO_YIELD_DEFINE
 #include <CoopMultitasking.h>
@@ -473,12 +456,14 @@ Make sure the library supports your development board &mdash; it has to be a boa
 
 #### Fiber Stack Size
 
-The stack size you request when calling `CoopMultitasking::startLoop()` will be rounded up if necessary in order to be divisible by 8, and will be 8-byte-aligned (which is a processor/call procedure requirement); therefore, your stack may consume 0-14 more bytes than you request. Protected memory, canaries, etc., are not used, and stack overflows will lead to undefined behavior; that is, corruption of adjacent memory directly _below_ the stack (ARM uses a full descending stack).
+The stack size you request when calling `CoopMultitasking::startLoop()` will be rounded up if necessary in order to be divisible by 8, and will be 8-byte-aligned (which is a processor/call procedure requirement); therefore, your stack may consume 0-14 more bytes than you request. Don't use more stack space than you request. Protected memory, canaries, etc., are not used, and stack overflows will lead to undefined behavior; that is, corruption of adjacent memory directly _below_ the stack (ARM uses a full descending stack).
+
+The default stack size is 4 KiB. See [CoopMultitasking.h](#src/CoopMultitasking.h) for a discussion of this choice.
+
 
 #### Requirement Of Each Loop To Explicitly Call `delay()`/`yield()`
 
 The requirement (if you want forward progression across all fibers) of calling `delay()` or `yield()` in your loops is for consistency with Arduino's runloop, which doesn't call `yield()` in-between iterations:
-
 ```cpp
 setup();
 
