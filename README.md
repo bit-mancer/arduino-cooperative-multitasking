@@ -270,7 +270,7 @@ void doLongRunningTask() {
 ```
 
 
-#### Interrupt handlers
+#### Interrupt Handlers
 
 _You can safely skip this section if you don't use interrupts._
 
@@ -315,7 +315,7 @@ void isrButton() {
 ```
 
 
-#### Handling error conditions
+#### Handling Error Conditions
 
 `CoopMultitasking::startLoop()` returns a value indicating whether the loop was started. You can take a look at [CoopMultitasking.h](#src/CoopMultitasking.h) to see all of the possible values, but the out-of-memory condition is the one you likely want to check for:
 
@@ -327,7 +327,7 @@ if ( CoopMultitasking::startLoop( loop2 )) == CoopMultitasking::Result::OutOfMem
 ```
 
 
-#### Call order
+#### Call Order
 
 In CoopMultitasking, a "fiber" runs each loop you start, including the main Arduino `loop()`. When you call `delay()` or `yield()`, the current fiber is paused and the next fiber is resumed (usually from where it too had been previously paused in `delay()` or `yield()`). To understand the execution flow of your code when using CoopMultitasking, let's consider the first example we saw earlier:
 
@@ -424,12 +424,12 @@ If you aren't familiar with Arduino libraries, check out the tutorials that Ardu
 <https://learn.adafruit.com/adafruit-all-about-arduino-libraries-install-use/>
 
 
-#### Only one loop is running
+#### Only One Loop Runs
 
 Make sure _every_ loop eventually calls either `delay()` or `yield()` &mdash; if one of your loops doesn't, then only that loop will get to run and the others will remain paused. It's okay to let your loop run a few times without calling either function, but if these functions are _never_ eventually called, then only that one loop will be able to run. If it looks like you have `delay()` or `yield()` in every loop and you're still getting this problem, then make sure they aren't being skipped by something like an `if` statement.
 
 
-#### Example code
+#### Example Code
 
 If you run the example code exactly as written, you may notice that `This is the normal Arduino loop.` is printed _before_ `This is our new loop!` in your serial monitor, even though `loop2()` runs before `loop()` &mdash; if you see this, it's because your serial connection has yet to be established the first time `loop2()` runs and calls `Serial.println()`. You can add the following code to your setup function to wait for the serial connection before starting your loops:
 
@@ -444,7 +444,7 @@ void setup() {
 ```
 
 
-#### `yield()` is already defined
+#### `yield()` Is Already Defined
 
 If you're using another library that also implements Arduino's `::yield()` function, then you can define `COOPMULTITASKING_NO_YIELD_DEFINE` _before_ including the CoopMultitasking header:
 
@@ -456,7 +456,7 @@ If you're using another library that also implements Arduino's `::yield()` funct
 This will prevent CoopMultitasking from defining `::yield()`. You can still use this library's yield by calling `CoopMultitasking::yield()`, but keep in mind that the Arduino functions `delay()` and `yield()` will NOT call CoopMultitasking's yield &mdash; they will call the yield defined by the other library you are using. The impact of this is that CoopMultitasking won't be able to switch fibers except when `CoopMultitasking::yield()` is explicitly called.
 
 
-#### Other compiler errors
+#### Other Compiler Errors
 
 __This library requires an up-to-date version of Arduino IDE (1.6+).__
 
@@ -471,11 +471,11 @@ Make sure the library supports your development board &mdash; it has to be a boa
 
 > This section is to document technical decisions in the library and won't impact the majority of users.
 
-#### Stack size
+#### Fiber Stack Size
 
 The stack size you request when calling `CoopMultitasking::startLoop()` will be rounded up if necessary in order to be divisible by 8, and will be 8-byte-aligned (which is a processor/call procedure requirement); therefore, your stack may consume 0-14 more bytes than you request. Protected memory, canaries, etc., are not used, and stack overflows will lead to undefined behavior; that is, corruption of adjacent memory directly _below_ the stack (ARM uses a full descending stack).
 
-#### Requirement of each loop to explicitly call `delay()`/`yield()`
+#### Requirement Of Each Loop To Explicitly Call `delay()`/`yield()`
 
 The requirement (if you want forward progression across all fibers) of calling `delay()` or `yield()` in your loops is for consistency with Arduino's runloop, which doesn't call `yield()` in-between iterations:
 
