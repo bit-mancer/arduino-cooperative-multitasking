@@ -178,7 +178,7 @@ _CoopMultitasking is a third-party library for Arduino and Arduino-compatible de
 
 ## Installation
 
-Download this repository as a zip file and then use the `Sketch->Include Library->Add .ZIP Library` menu in Arduino IDE. See [Installing Additional Arduino Libraries](https://www.arduino.cc/en/Guide/Libraries) for more information.
+Download the [latest stable release](https://github.com/bit-mancer/arduino-cooperative-multitasking/releases/latest) as a zip file and then use the `Sketch->Include Library->Add .ZIP Library` menu in Arduino IDE. See [Installing Additional Arduino Libraries](https://www.arduino.cc/en/Guide/Libraries) for more information.
 
 
 
