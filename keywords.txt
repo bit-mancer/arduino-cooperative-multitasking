@@ -6,15 +6,15 @@
 # Datatypes (KEYWORD1)
 #######################################
 
-CoopMultitasking::LoopFunc KEYWORD1
-CoopMultitasking::Result KEYWORD1
+CoopMultitasking::LoopFunc	KEYWORD1
+CoopMultitasking::Result	KEYWORD1
 
 #######################################
 # Methods and Functions (KEYWORD2)
 #######################################
 
-CoopMultitasking::yield KEYWORD2
-CoopMultitasking::startLoop KEYWORD2
+CoopMultitasking::yield	KEYWORD2
+CoopMultitasking::startLoop	KEYWORD2
 
 #######################################
 # Instances (KEYWORD2)
@@ -24,4 +24,4 @@ CoopMultitasking::startLoop KEYWORD2
 # Constants (LITERAL1)
 #######################################
 
-COOPMULTITASKING_DEFAULT_STACK_SIZE LITERAL1
+COOPMULTITASKING_DEFAULT_STACK_SIZE	LITERAL1
